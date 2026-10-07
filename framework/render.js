@@ -1,5 +1,7 @@
-// Names handled by later features (keys, events, refs) are not DOM attributes.
-const RESERVED = new Set(['key', 'on', 'ref']);
+import { setEvents } from './events.js';
+
+// Names handled by later features (keys, refs) are not DOM attributes.
+const RESERVED = new Set(['key', 'ref']);
 
 // These must be set as live properties, otherwise the browser ignores later changes.
 const PROPERTIES = new Set(['value', 'checked', 'selected']);
@@ -33,6 +35,11 @@ function setStyle(el, style) {
  */
 export function setAttribute(el, name, value) {
   if (RESERVED.has(name)) return;
+
+  if (name === 'on') {
+    setEvents(el, value);
+    return;
+  }
 
   if (name === 'style') {
     setStyle(el, value);
