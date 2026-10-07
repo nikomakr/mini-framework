@@ -21,7 +21,7 @@ From the root of the repository:
 node server.js
 ```
 
-Then open <http://localhost:8080/todomvc/> in your browser.
+Then open <http://localhost:65500/todomvc/> in your browser.
 
 To use a different port:
 
@@ -32,7 +32,7 @@ PORT=3000 node server.js
 No Node.js? Python works too:
 
 ```bash
-python3 -m http.server 8080
+python3 -m http.server 65500
 ```
 
 ## Why a local server?
