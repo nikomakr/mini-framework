@@ -4,3 +4,4 @@ export { onKey } from './events.js';
 export { createStore } from './state.js';
 export { patch } from './diff.js';
 export { onGlobal, createKeyState } from './events.js';
+export { createApp } from './app.js';
