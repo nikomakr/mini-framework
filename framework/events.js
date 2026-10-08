@@ -1,15 +1,51 @@
 // Events that do not bubble cannot be caught at the root, so they are set on the element itself.
 const NON_BUBBLING = new Set(['focus', 'blur', 'mouseenter', 'mouseleave', 'load', 'error', 'scroll']);
 
+// Page-wide events that only fire on the window, not on the document.
+const WINDOW_EVENTS = new Set(['blur', 'focus', 'resize']);
+
+// Elements where the user is typing; page-wide key handlers ignore them.
+const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+
 // element → { eventType: handler }. A WeakMap lets removed elements be cleaned up automatically.
 const handlers = new WeakMap();
 
-// Event types already listened to at the root.
+// eventType → Set of { handler, options } registered with onGlobal().
+const globalHandlers = new Map();
+
+// Event types already listened to at the root (document) and on the window.
 const delegatedTypes = new Set();
+const windowTypes = new Set();
+
+/**
+ * Whether an event comes from somewhere the user is typing.
+ *
+ * @param {Event} event
+ * @returns {boolean}
+ */
+function isTyping(event) {
+  const target = event.target;
+  return Boolean(target && (TYPING_TAGS.has(target.tagName) || target.isContentEditable));
+}
+
+/**
+ * Runs the page-wide handlers registered for an event's type.
+ *
+ * @param {Event} event
+ */
+function runGlobal(event) {
+  const registered = globalHandlers.get(event.type);
+  if (!registered) return;
+  [...registered].forEach(({ handler, options }) => {
+    if (event.type.startsWith('key') && !options.allowInInputs && isTyping(event)) return;
+    handler(event);
+  });
+}
 
 /**
  * Runs the handlers for an event, starting at the element that was acted on
- * and walking up through its parents, like the browser's own bubbling.
+ * and walking up through its parents, like the browser's own bubbling,
+ * then runs any page-wide handlers.
  * A handler can call event.stopPropagation() to stop the walk.
  *
  * @param {Event} event - The event caught at the root.
@@ -33,6 +69,8 @@ function dispatch(event) {
     if (handler) handler.call(node, event, node);
     node = node.parentNode;
   }
+
+  if (!stopped) runGlobal(event);
 }
 
 /**
@@ -54,6 +92,17 @@ function listenAtRoot(type) {
   if (delegatedTypes.has(type)) return;
   document[`on${type}`] = dispatch;
   delegatedTypes.add(type);
+}
+
+/**
+ * Sets up a single window handler for a window-only event type.
+ *
+ * @param {string} type - Event type, e.g. 'blur'.
+ */
+function listenOnWindow(type) {
+  if (windowTypes.has(type)) return;
+  window[`on${type}`] = runGlobal;
+  windowTypes.add(type);
 }
 
 /**
@@ -116,5 +165,69 @@ export function onKey(bindings) {
   return (event, el) => {
     const handler = bindings[event.key];
     if (handler) handler(event, el);
+  };
+}
+
+/**
+ * Listens to an event across the whole page. Key events typed inside inputs,
+ * text areas and selects are ignored unless `allowInInputs` is set.
+ * 'blur', 'focus' and 'resize' are listened to on the window.
+ *
+ * @example
+ * const stop = onGlobal('keydown', (event) => console.log(event.key));
+ * stop(); // no longer listening
+ *
+ * @param {string} type - Event type, e.g. 'keydown'.
+ * @param {Function} handler - Called with the event.
+ * @param {{ allowInInputs?: boolean }} [options={}]
+ * @returns {Function} Call it to stop listening.
+ */
+export function onGlobal(type, handler, options = {}) {
+  if (!globalHandlers.has(type)) globalHandlers.set(type, new Set());
+  const entry = { handler, options };
+  globalHandlers.get(type).add(entry);
+
+  if (WINDOW_EVENTS.has(type)) {
+    listenOnWindow(type);
+  } else {
+    listenAtRoot(type);
+  }
+
+  return () => {
+    globalHandlers.get(type).delete(entry);
+  };
+}
+
+/**
+ * Tracks which keys are currently held down, for smooth movement in games.
+ * Held keys are cleared when the window loses focus or the tab is hidden.
+ *
+ * @example
+ * const keys = createKeyState();
+ * if (keys.isDown('ArrowUp')) moveUp();
+ * keys.destroy(); // stop tracking
+ *
+ * @returns {{ isDown: (key: string) => boolean, pressed: () => string[], destroy: () => void }}
+ */
+export function createKeyState() {
+  const down = new Set();
+
+  const stops = [
+    onGlobal('keydown', (event) => down.add(event.key)),
+    // Always release keys, even inside inputs, so none stay stuck.
+    onGlobal('keyup', (event) => down.delete(event.key), { allowInInputs: true }),
+    onGlobal('blur', () => down.clear()),
+    onGlobal('visibilitychange', () => {
+      if (document.hidden) down.clear();
+    }),
+  ];
+
+  return {
+    isDown: (key) => down.has(key),
+    pressed: () => [...down],
+    destroy: () => {
+      stops.forEach((stop) => stop());
+      down.clear();
+    },
   };
 }
