@@ -1,22 +1,37 @@
-import { h, render } from '../framework/index.js';
+import { h, createApp } from '../framework/index.js';
+import { store, toggleAll } from './store.js';
 import { Header } from './components/Header.js';
 import { TodoList } from './components/TodoList.js';
 import { Footer } from './components/Footer.js';
 import { Info } from './components/Info.js';
 
-const app = h('section', { class: 'todoapp' }, [
-Header(),
-h('section', { class: 'main' }, [
-h('input', { id: 'toggle-all', class: 'toggle-all', type: 'checkbox' }),
-h('label', { for: 'toggle-all' }, 'Mark all as complete'),
-TodoList(),
-]),
-Footer(),
-]);
+/**
+ * Describes the whole page for the current state.
+ *
+ * @param {{ todos: Array, newTitle: string }} state
+ * @returns {Object} Virtual node.
+ */
+function view(state) {
+  const allCompleted = state.todos.length > 0 && state.todos.every((todo) => todo.completed);
 
-const page = h('div', {}, [
-app,
-Info(),
-]);
+  return h('div', {}, [
+    h('section', { class: 'todoapp' }, [
+      Header(state),
+      h('section', { class: 'main' }, [
+        h('input', {
+          id: 'toggle-all',
+          class: 'toggle-all',
+          type: 'checkbox',
+          checked: allCompleted,
+          on: { change: (event) => toggleAll(event.target.checked) },
+        }),
+        h('label', { for: 'toggle-all' }, 'Mark all as complete'),
+        TodoList(state.todos),
+      ]),
+      Footer(),
+    ]),
+    Info(),
+  ]);
+}
 
-render(page, document.body);
+createApp({ root: document.body, store, view });
