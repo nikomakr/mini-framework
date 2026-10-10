@@ -73,3 +73,12 @@ export function toggleAll(completed) {
     todos: state.todos.map((todo) => ({ ...todo, completed })),
   }));
 }
+
+/**
+ * Removes every completed todo.
+ */
+export function clearCompleted() {
+  store.setState((state) => ({
+    todos: state.todos.filter((todo) => !todo.completed),
+  }));
+}

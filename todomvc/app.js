@@ -28,7 +28,7 @@ function view(state) {
         h('label', { for: 'toggle-all' }, 'Mark all as complete'),
         TodoList(state.todos),
       ]),
-      Footer(),
+      Footer(state.todos),
     ]),
     Info(),
   ]);
