@@ -159,11 +159,163 @@ _To be written._
 
 ## Manage state
 
-_To be written._
+The app's data lives in a **store**: one object that holds the current state. Components never change the page directly. They change the store, and the framework updates the page.
+
+### Create a store
+
+`createStore(initialState)` returns a store with three functions: `getState`, `setState` and `subscribe`.
+
+```js
+import { createStore } from '/framework/index.js';
+
+const store = createStore({ count: 0, name: 'Ada' });
+```
+
+### Read the state
+
+`getState()` returns the current state.
+
+```js
+console.log(store.getState()); // { count: 0, name: 'Ada' }
+```
+
+### Update the state
+
+`setState` accepts either an object or a function.
+
+- **An object** is merged into the current state. Keys you leave out keep their value.
+- **A function** receives the current state and returns the keys to change. Use it when the new value depends on the old one.
+
+```js
+store.setState({ count: 1 });
+console.log(store.getState()); // { count: 1, name: 'Ada' }
+
+store.setState((state) => ({ count: state.count + 1 }));
+console.log(store.getState().count); // 2
+```
+
+### Listen for changes
+
+`subscribe(listener)` runs `listener(state, previousState)` after every change, and returns a function that stops listening.
+
+`subscribe(selector, listener)` runs the listener **only when the selected part changes**. The selector picks the part to watch. This avoids unnecessary work: for example, saving the todos when they change, but not on every key pressed in the input.
+
+```js
+const store = createStore({ count: 0, name: 'Ada' });
+
+// Runs after every change
+const stopListening = store.subscribe((state, previousState) => {
+  console.log('changed from', previousState.count, 'to', state.count);
+});
+
+// Runs only when `count` changes
+store.subscribe(
+  (state) => state.count,
+  (state) => console.log('count is now', state.count),
+);
+
+store.setState({ count: 5 });      // both listeners run
+store.setState({ name: 'Grace' }); // only the first listener runs
+
+stopListening();
+store.setState({ count: 6 });      // only the `count` listener runs
+```
+
+### Connect the store to the page
+
+`createApp` re-renders the page whenever the store changes. The view is a function of the state, so the page always matches the data.
+
+```html
+<div id="app"></div>
+<script type="module">
+  import { h, createStore, createApp } from '/framework/index.js';
+
+  const store = createStore({ count: 0 });
+
+  const view = (state) =>
+    h('div', {}, [
+      h('p', {}, [`Count: ${state.count}`]),
+      h('button', { on: { click: () => store.setState((s) => ({ count: s.count + 1 })) } }, '+1'),
+    ]);
+
+  createApp({ root: document.getElementById('app'), store, view });
+</script>
+```
+
+Several stores can exist at the same time; each one is independent.
 
 ## Routing
 
-_To be written._
+The router keeps the **URL** and the **state** in sync. It uses the part of the URL after `#` (for example `#/about`), so it works with any static server and the page never reloads.
+
+### Define routes
+
+`createRouter({ routes, store })` takes:
+
+- **`routes`**: an object whose keys are paths (`'/'`, `'/about'`) and whose values are functions. Each function receives the store and updates it for that route.
+- **`store`**: the store the routes update.
+
+When the page loads, the router applies the route already in the URL, or goes to `#/` if there is none. An unknown path falls back to the `'/'` route.
+
+```js
+import { createStore, createRouter } from '/framework/index.js';
+
+const store = createStore({ page: 'home' });
+
+createRouter({
+  store,
+  routes: {
+    '/': (routerStore) => routerStore.setState({ page: 'home' }),
+    '/about': (routerStore) => routerStore.setState({ page: 'about' }),
+  },
+});
+```
+
+### Link to a route
+
+Use a normal link whose `href` starts with `#`. Clicking it changes the URL, the router runs the matching route, and the page updates. The browser's back and forward buttons work as usual.
+
+```js
+h('a', { href: '#/about' }, 'About')
+```
+
+### Read the current route
+
+The routes store the current page in the state, so the view reads it like any other value. This example also highlights the active link:
+
+```html
+<div id="app"></div>
+<script type="module">
+  import { h, createStore, createApp, createRouter } from '/framework/index.js';
+
+  const store = createStore({ page: 'home' });
+
+  createRouter({
+    store,
+    routes: {
+      '/': (routerStore) => routerStore.setState({ page: 'home' }),
+      '/about': (routerStore) => routerStore.setState({ page: 'about' }),
+    },
+  });
+
+  const link = (href, label, page, current) =>
+    h('a', { href, class: page === current ? 'selected' : null }, label);
+
+  const view = (state) =>
+    h('div', {}, [
+      h('nav', {}, [
+        link('#/', 'Home', 'home', state.page),
+        ' | ',
+        link('#/about', 'About', 'about', state.page),
+      ]),
+      h('h1', {}, state.page === 'about' ? 'About us' : 'Welcome home'),
+    ]);
+
+  createApp({ root: document.getElementById('app'), store, view });
+</script>
+```
+
+In TodoMVC, the same pattern drives the filters: `#/`, `#/active` and `#/completed` set `filter` in the store, and the list shows only the matching todos.
 
 ## How it works
 
