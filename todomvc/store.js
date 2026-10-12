@@ -62,7 +62,19 @@ export function deleteTodo(id) {
     todos: state.todos.filter((todo) => todo.id !== id),
   }));
 }
-
+/**
+ * Updates the title of one todo.
+ *
+ * @param {string} id
+ * @param {string} title
+ */
+export function updateTodo(id, title) {
+  store.setState((state) => ({
+    todos: state.todos.map((todo) =>
+      todo.id === id ? { ...todo, title } : todo
+    ),
+  }));
+}
 /**
  * Marks every todo as complete or incomplete.
  *
