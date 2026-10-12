@@ -5,9 +5,11 @@ import { clearCompleted } from '../store.js';
  * The footer: how many todos are left, the filters and the clear button.
  *
  * @param {Array<{ id: string, title: string, completed: boolean }>} todos
+ * @param {'all' | 'active' | 'completed'} filter - The filter currently shown.
  * @returns {Object} Virtual node.
  */
-export function Footer(todos) {
+export function Footer(todos, filter) {
+  const selectedWhen = (name) => (filter === name ? 'selected' : null);
   const active = todos.filter((todo) => !todo.completed).length;
   const completed = todos.length - active;
 
@@ -17,9 +19,9 @@ export function Footer(todos) {
       active === 1 ? ' item left' : ' items left',
     ]),
     h('ul', { class: 'filters' }, [
-      h('li', {}, [h('a', { class: 'selected', href: '#/' }, 'All')]),
-      h('li', {}, [h('a', { href: '#/active' }, 'Active')]),
-      h('li', {}, [h('a', { href: '#/completed' }, 'Completed')]),
+      h('li', {}, [h('a', { class: selectedWhen('all'), href: '#/' }, 'All')]),
+      h('li', {}, [h('a', { class: selectedWhen('active'), href: '#/active' }, 'Active')]),
+      h('li', {}, [h('a', { class: selectedWhen('completed'), href: '#/completed' }, 'Completed')]),
     ]),
     completed > 0
       ? h('button', { class: 'clear-completed', on: { click: clearCompleted } }, 'Clear completed')

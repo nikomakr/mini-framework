@@ -40,7 +40,7 @@ function saveTodos(todos) {
   }
 }
 
-export const store = createStore({ todos: loadTodos(), newTitle: '' });
+export const store = createStore({ todos: loadTodos(), newTitle: '', filter: 'all' });
 
 // Save only when the todos change, not on every keystroke in the input.
 store.subscribe((state) => state.todos, (state) => saveTodos(state.todos));
@@ -76,6 +76,28 @@ export function addTodo(title) {
     todos: [...state.todos, { id: createId(), title: trimmed, completed: false }],
     newTitle: '',
   }));
+}
+
+/**
+ * Sets which todos are shown: 'all', 'active' or 'completed'.
+ *
+ * @param {'all' | 'active' | 'completed'} filter
+ */
+export function setFilter(filter) {
+  store.setState({ filter });
+}
+
+/**
+ * Returns the todos that match a filter.
+ *
+ * @param {Array<{ id: string, title: string, completed: boolean }>} todos
+ * @param {'all' | 'active' | 'completed'} filter
+ * @returns {Array<{ id: string, title: string, completed: boolean }>}
+ */
+export function filterTodos(todos, filter) {
+  if (filter === 'active') return todos.filter((todo) => !todo.completed);
+  if (filter === 'completed') return todos.filter((todo) => todo.completed);
+  return todos;
 }
 
 /**

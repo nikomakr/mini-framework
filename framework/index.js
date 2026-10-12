@@ -6,3 +6,4 @@ export { patch } from './diff.js';
 export { onGlobal, createKeyState } from './events.js';
 export { createApp } from './app.js';
 export { createLoop } from './scheduler.js';
+export { createRouter } from './router.js';

@@ -1,5 +1,5 @@
-import { h, createApp } from '../framework/index.js';
-import { store, toggleAll } from './store.js';
+import { h, createApp, createRouter } from '../framework/index.js';
+import { store, toggleAll, setFilter, filterTodos } from './store.js';
 import { Header } from './components/Header.js';
 import { TodoList } from './components/TodoList.js';
 import { Footer } from './components/Footer.js';
@@ -26,12 +26,22 @@ function view(state) {
           on: { change: (event) => toggleAll(event.target.checked) },
         }),
         h('label', { for: 'toggle-all' }, 'Mark all as complete'),
-        TodoList(state.todos),
+        TodoList(filterTodos(state.todos, state.filter)),
       ]),
-      Footer(state.todos),
+      Footer(state.todos, state.filter),
     ]),
     Info(),
   ]);
 }
+
+// The URL decides which todos are shown: #/, #/active or #/completed.
+createRouter({
+  store,
+  routes: {
+    '/': () => setFilter('all'),
+    '/active': () => setFilter('active'),
+    '/completed': () => setFilter('completed'),
+  },
+});
 
 createApp({ root: document.body, store, view });
