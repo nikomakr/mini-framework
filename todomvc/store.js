@@ -6,7 +6,44 @@ import { createStore } from '../framework/index.js';
  * - todos: Array<{ id: string, title: string, completed: boolean }>
  * - newTitle: the text currently typed in the "What needs to be done?" input
  */
-export const store = createStore({ todos: [], newTitle: '' });
+// Key under which the todos are saved in the browser.
+const STORAGE_KEY = 'todos-mini-framework';
+
+/**
+ * Reads the saved todos from localStorage. Returns an empty list if nothing
+ * is saved, the data is unreadable, or storage is unavailable.
+ *
+ * @returns {Array<{ id: string, title: string, completed: boolean }>}
+ */
+function loadTodos() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (!Array.isArray(saved)) return [];
+    return saved
+      .filter((todo) => todo && typeof todo.title === 'string' && todo.id !== undefined)
+      .map((todo) => ({ id: String(todo.id), title: todo.title, completed: Boolean(todo.completed) }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saves the todos to localStorage. Does nothing if storage is unavailable.
+ *
+ * @param {Array<{ id: string, title: string, completed: boolean }>} todos
+ */
+function saveTodos(todos) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+  } catch {
+    // Storage can be full or blocked (e.g. private browsing); the app still works.
+  }
+}
+
+export const store = createStore({ todos: loadTodos(), newTitle: '' });
+
+// Save only when the todos change, not on every keystroke in the input.
+store.subscribe((state) => state.todos, (state) => saveTodos(state.todos));
 
 /**
  * Creates a unique id for a new todo.
