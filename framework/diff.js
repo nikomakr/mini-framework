@@ -1,5 +1,6 @@
 import { createElement, setAttribute } from './render.js';
 import { setEvents } from './events.js';
+import { updateHooks, flushMounts, unmount } from './lifecycle.js';
 
 // Live properties: compared with the element itself, as the user may have changed them.
 const PROPERTIES = new Set(['value', 'checked', 'selected']);
@@ -138,7 +139,10 @@ function updateChildren(parent, oldChildren, newChildren) {
   });
 
   oldNodes.forEach((node) => {
-    if (!used.has(node) && node.parentNode === parent) parent.removeChild(node);
+    if (!used.has(node) && node.parentNode === parent) {
+      unmount(node);
+      parent.removeChild(node);
+    }
   });
 }
 
@@ -158,11 +162,13 @@ function patchNode(node, oldVNode, newVNode) {
 
   if (isText(oldVNode) || isText(newVNode) || oldVNode.tag !== newVNode.tag) {
     const replacement = createElement(newVNode);
+    unmount(node);
     node.parentNode.replaceChild(replacement, node);
     return replacement;
   }
 
   updateAttributes(node, oldVNode.attrs, newVNode.attrs);
+  updateHooks(node, newVNode.attrs);
   updateChildren(node, oldVNode.children, newVNode.children);
   return node;
 }
@@ -183,8 +189,10 @@ function patchNode(node, oldVNode, newVNode) {
  */
 export function patch(container, oldVNode, newVNode) {
   if (!oldVNode || !container.firstChild) {
+    Array.from(container.childNodes).forEach(unmount);
     const el = createElement(newVNode);
     container.replaceChildren(el);
+    flushMounts();
     return el;
   }
 
@@ -198,6 +206,7 @@ export function patch(container, oldVNode, newVNode) {
   }
 
   const root = patchNode(container.firstChild, oldVNode, newVNode);
+  flushMounts();
 
   if (active && active !== document.activeElement && active.isConnected) {
     active.focus();

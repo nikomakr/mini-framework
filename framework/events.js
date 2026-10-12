@@ -183,6 +183,9 @@ export function onKey(bindings) {
  * @returns {Function} Call it to stop listening.
  */
 export function onGlobal(type, handler, options = {}) {
+  if (!(`on${type}` in document) && !(`on${type}` in window)) {
+    throw new Error(`onGlobal: "${type}" events are not supported by this browser.`);
+  }
   if (!globalHandlers.has(type)) globalHandlers.set(type, new Set());
   const entry = { handler, options };
   globalHandlers.get(type).add(entry);
@@ -200,7 +203,8 @@ export function onGlobal(type, handler, options = {}) {
 
 /**
  * Tracks which keys are currently held down, for smooth movement in games.
- * Held keys are cleared when the window loses focus or the tab is hidden.
+ * Held keys are released when the window loses focus, when the page is
+ * hidden (e.g. switching tab), and when Cmd is released on macOS.
  *
  * @example
  * const keys = createKeyState();
@@ -211,23 +215,36 @@ export function onGlobal(type, handler, options = {}) {
  */
 export function createKeyState() {
   const down = new Set();
+  const releaseAll = () => down.clear();
 
   const stops = [
     onGlobal('keydown', (event) => down.add(event.key)),
     // Always release keys, even inside inputs, so none stay stuck.
-    onGlobal('keyup', (event) => down.delete(event.key), { allowInInputs: true }),
-    onGlobal('blur', () => down.clear()),
-    onGlobal('visibilitychange', () => {
-      if (document.hidden) down.clear();
-    }),
+    onGlobal(
+      'keyup',
+      (event) => {
+        down.delete(event.key);
+        // On macOS, keys released while Cmd is held never report a keyup.
+        if (event.key === 'Meta') releaseAll();
+      },
+      { allowInInputs: true },
+    ),
+    onGlobal('blur', releaseAll),
   ];
+
+  // Safety net: browsers do not always report leaving the tab (e.g. Cmd+T on
+  // macOS), so check a few times a second whether the page is hidden or unfocused.
+  const focusCheck = setInterval(() => {
+    if (document.hidden || !document.hasFocus()) releaseAll();
+  }, 100);
 
   return {
     isDown: (key) => down.has(key),
     pressed: () => [...down],
     destroy: () => {
       stops.forEach((stop) => stop());
-      down.clear();
+      clearInterval(focusCheck);
+      releaseAll();
     },
   };
 }

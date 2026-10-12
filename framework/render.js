@@ -1,7 +1,8 @@
 import { setEvents } from './events.js';
+import { registerHooks, flushMounts, unmount } from './lifecycle.js';
 
 // Names handled by later features (keys, refs) are not DOM attributes.
-const RESERVED = new Set(['key', 'ref']);
+const RESERVED = new Set(['key', 'ref', 'onMount', 'onUnmount']);
 
 // These must be set as live properties, otherwise the browser ignores later changes.
 const PROPERTIES = new Set(['value', 'checked', 'selected']);
@@ -80,6 +81,7 @@ export function createElement(vnode) {
     el.appendChild(createElement(child));
   });
 
+  registerHooks(el, vnode.attrs);
   return el;
 }
 
@@ -94,7 +96,9 @@ export function createElement(vnode) {
  * @returns {Node} The rendered DOM node.
  */
 export function render(vnode, container) {
+  Array.from(container.childNodes).forEach(unmount);
   const el = createElement(vnode);
   container.replaceChildren(el);
+  flushMounts();
   return el;
 }

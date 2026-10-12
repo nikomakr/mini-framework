@@ -1,5 +1,6 @@
 import { patch } from './diff.js';
 import { scheduleRender } from './scheduler.js';
+import { unmount } from './lifecycle.js';
 
 /**
  * Starts an app. The framework calls `view(state)` to describe the page and
@@ -41,6 +42,7 @@ export function createApp({ root, store, view }) {
     refresh: requestRender,
     unmount: () => {
       unsubscribe();
+      Array.from(root.childNodes).forEach(unmount);
       root.replaceChildren();
       current = undefined;
     },
