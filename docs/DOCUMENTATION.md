@@ -2,43 +2,74 @@
 
 ## Overview
 
-This framework lets you describe a page as plain JavaScript objects and turn them into real DOM elements.
+This framework lets you build a web page by describing **what** it should look like for the current data. The framework works out **how** to update the page.
 
-- `h(tag, attrs, children)` creates a **virtual node**: a plain object that describes an element.
-- `render(vnode, container)` turns a virtual node into real DOM elements and puts them inside a container.
+It offers four features:
 
-You never call `document.createElement` yourself. You describe what the page should look like with `h`, and `render` builds it.
+- **Abstracting the DOM**: `h()` describes an element as a plain JavaScript object (a *virtual node*). `render()` and `patch()` turn those objects into real elements and keep them up to date, changing only what is different.
+- **Event handling**: events are declared on the element with `on: { click: … }`. The framework handles them through one handler per event type at the root of the page, not with `addEventListener()`. `onKey`, `onGlobal` and `createKeyState` cover keyboard shortcuts and held keys.
+- **State management**: `createStore()` keeps the app's data in one place that every part of the app can read, update and listen to.
+- **Routing**: `createRouter()` keeps the URL (`#/`, `#/active`, …) and the state in sync, including the browser's back and forward buttons.
+
+`createApp()` ties them together: give it a store and a `view` function, and the page is redrawn whenever the state changes.
+
+### A framework, not a library
+
+With a library, your code is in control and calls the library when it needs it. With a framework, the control is inverted: **the framework calls your code**.
+
+Here, you never create, change or remove DOM elements yourself. You write a `view(state)` function and event handlers that update the store. The framework decides when to call `view`, compares the result with what is on the page, and applies the changes.
 
 ## Getting started
 
-The framework is made of ES modules, so the page must be served over HTTP. Opening the HTML file directly (`file://...`) will not work.
+The framework is made of ES modules with no dependencies, so there is nothing to install. The page must be served over HTTP: opening the HTML file directly (`file://...`) will not work.
 
-**1. Project layout**
+### Folder structure
 
 ```
-my-project/
-├── index.html
-└── framework/
-    ├── index.js
-    ├── vnode.js
-    ├── render.js
-    └── ...
+mini-framework/
+├── server.js            a small static server (Node.js, no dependencies)
+├── framework/           the framework
+│   ├── index.js         everything you can import
+│   ├── vnode.js         h()
+│   ├── render.js        render()
+│   ├── diff.js          patch()
+│   ├── events.js        event handling
+│   ├── state.js         createStore()
+│   ├── router.js        createRouter()
+│   ├── app.js           createApp()
+│   ├── scheduler.js     rendering once per frame, createLoop()
+│   └── lifecycle.js     ref, onMount, onUnmount
+├── todomvc/             the TodoMVC app built with the framework
+└── docs/
+    └── DOCUMENTATION.md this file
 ```
 
-**2. A page to paste the examples into** (`index.html`)
+### Run it
+
+From the `mini-framework` folder:
+
+```bash
+node server.js
+```
+
+Then open `http://localhost:65500/todomvc/` to see the TodoMVC app.
+
+### Try your own code
+
+Create `playground.html` in the `mini-framework` folder:
 
 ```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Framework demo</title>
+  <title>Framework playground</title>
 </head>
 <body>
   <div id="app"></div>
 
   <script type="module">
-    import { h, render } from './framework/index.js';
+    import { h, render } from '/framework/index.js';
 
     render(h('h1', {}, ['Hello, world!']), document.getElementById('app'));
   </script>
@@ -46,15 +77,27 @@ my-project/
 </html>
 ```
 
-**3. Start a local server** from the `my-project` folder:
-
-```bash
-python3 -m http.server 8000
-```
-
-Then open `http://localhost:8000` in your browser. You should see "Hello, world!".
+Open `http://localhost:65500/playground.html`. You should see "Hello, world!".
 
 In every example below, replace the contents of the `<script type="module">` tag in this page with the example code.
+
+### A minimal app
+
+This counter uses a store, an event and `createApp`. Clicking the button updates the store, and the framework redraws the page:
+
+```js
+import { h, createStore, createApp } from '/framework/index.js';
+
+const store = createStore({ count: 0 });
+
+const view = (state) =>
+  h('div', {}, [
+    h('p', {}, [`Clicked ${state.count} times`]),
+    h('button', { on: { click: () => store.setState((s) => ({ count: s.count + 1 })) } }, 'Click me'),
+  ]);
+
+createApp({ root: document.getElementById('app'), store, view });
+```
 
 ## Create an element
 
@@ -319,4 +362,113 @@ In TodoMVC, the same pattern drives the filters: `#/`, `#/active` and `#/complet
 
 ## How it works
 
-_To be written._
+### The big picture
+
+Every change follows the same one-way loop:
+
+```
+user action → event handler → store.setState() → next frame → view(state) → patch() → page updated
+```
+
+1. The user clicks, types or changes the URL.
+2. A handler updates the store. It never touches the page.
+3. The store tells `createApp` that the state has changed.
+4. On the next animation frame, `createApp` calls `view(state)` to get a new virtual tree.
+5. `patch()` compares the new tree with the previous one and changes only the parts of the page that differ.
+
+Because the page is always built from the state, the two can never disagree.
+
+### Virtual DOM
+
+`h('p', { class: 'note' }, ['Hi'])` returns a plain object:
+
+```js
+{ tag: 'p', attrs: { class: 'note' }, children: ['Hi'] }
+```
+
+Plain objects are cheap to create and compare, whereas real DOM elements are slow to create and change. So the framework builds a new tree of objects on every update, and touches the real DOM only where something has changed.
+
+`h()` also tidies the children: nested arrays are flattened, and `null`, `undefined`, `true` and `false` are removed. That is why `condition && h(...)` works for showing an element only sometimes.
+
+### Diffing
+
+`patch(container, oldTree, newTree)` walks both trees together:
+
+- **Same tag**: the element is kept. Only attributes, styles, events and children that changed are updated.
+- **Different tag, or text replaced by an element**: the old element is replaced.
+- **Children with a `key`** (for example `key: todo.id`) are matched by key, so a list item keeps its element, and its state, when items are added, removed or reordered.
+- **Children without a key** are matched in order.
+
+`value`, `checked` and `selected` are compared with the live element, because the user may have changed them by typing or clicking. They are only set when they differ, so the cursor in an input does not jump. If a re-render moves the focused input, the focus and cursor position are put back.
+
+### Event delegation
+
+`addEventListener()` is not used. Instead:
+
+1. When an element declares `on: { click: handler }`, the handler is stored in a `WeakMap` against that element.
+2. The first time a `click` handler is needed, the framework sets **one** `document.onclick` for the whole page.
+3. When a click happens, that root handler starts at the clicked element and walks up through its parents, running each stored `click` handler. This copies the browser's own bubbling, and `event.stopPropagation()` still stops it.
+
+Why this way:
+
+- **Fewer handlers**: a list of 1,000 todos uses one click handler, not 1,000.
+- **Re-renders are cheap**: changing a handler only updates the `WeakMap`. Nothing is removed from or added to the element.
+- **No leaks**: when an element is removed, the `WeakMap` lets the browser forget its handlers automatically.
+
+Events that do not bubble (`focus`, `blur`, `mouseenter`, `mouseleave`, `scroll`, `load`, `error`) cannot be caught at the root, so they are set directly on the element with `el.onblur = …`.
+
+`onGlobal(type, handler)` listens to an event across the whole page (for example game controls). Key events typed inside inputs are ignored unless `{ allowInInputs: true }` is passed.
+
+### The store
+
+The store is a single object that holds the app's state, reachable from every part of the app.
+
+- `setState` never changes the old state. It creates a new object (`{ ...oldState, ...changes }`). This makes it easy to compare "before" and "after", and to give listeners both.
+- `subscribe(selector, listener)` runs the listener only when the selected part changes (compared with `Object.is`). TodoMVC uses this to save the todos to `localStorage` only when they change, not on every key pressed in the input.
+
+### Hash routing
+
+The router uses the part of the URL after `#`. Changing it:
+
+- **does not reload the page**, so the state is kept;
+- **needs no server set-up**: any static server works, and refreshing on `#/active` still loads the same `index.html`;
+- **adds a history entry**, so the back and forward buttons work.
+
+`createRouter` listens to `window.onhashchange`, finds the route for the new path, and calls it with the store. The route updates the state, and the normal loop redraws the page. An unknown path falls back to the `'/'` route.
+
+### Rendering once per frame
+
+Several `setState` calls can happen in a row (for example, "Clear completed" removing many todos). Redrawing after each one would waste work.
+
+So `createApp` does not redraw straight away. It queues the redraw with `requestAnimationFrame`, in a `Set`, so the same job is queued only once. However many times the state changes before the next frame, the page is redrawn **once**, just before the browser paints. This keeps updates smooth at 60 frames per second.
+
+### Lifecycle hooks
+
+Some code needs the real element, for example to focus an input or measure its size. Three special attributes give access to it:
+
+- `ref: (el) => …` receives the element once it is on the page, and `null` when it is removed.
+- `onMount: (el) => …` runs once the element is on the page.
+- `onUnmount: (el) => …` runs just before the element is removed.
+
+These names are reserved, so they never appear as HTML attributes.
+
+### Game loop
+
+`createLoop(update)` calls `update(delta)` once per animation frame, where `delta` is the number of milliseconds since the previous frame. Moving by `speed * delta` keeps movement the same speed on any screen. While the tab is hidden, `update` is not called, and the first frame after returning reports a `delta` of `0`, so nothing jumps.
+
+## Reference
+
+Everything below is imported from `/framework/index.js`.
+
+- `h(tag, attrs, children)`: Creates a virtual node. `attrs` and `children` are optional.
+- `render(vnode, container)`: Builds real elements from a virtual node and puts them in `container`, replacing what was there.
+- `patch(container, oldVNode, newVNode)`: Updates `container` from `oldVNode` to `newVNode`, changing only what differs.
+- `onKey(bindings)`: Returns a key handler that runs a function per key, e.g. `onKey({ Enter: save, Escape: cancel })`.
+- `onGlobal(type, handler, options)`: Listens to an event across the whole page. Returns a function that stops listening.
+- `createKeyState()`: Tracks which keys are held down. Returns `{ isDown(key), pressed(), destroy() }`.
+- `createStore(initialState)`: Creates a store. Returns `{ getState(), setState(changes), subscribe([selector,] listener) }`.
+- `createApp({ root, store, view })`: Renders `view(state)` into `root` and redraws when the store changes. Returns `{ refresh(), unmount() }`.
+- `createRouter({ routes, store })`: Runs the route matching the URL after `#`, now and whenever it changes.
+- `createLoop(update)`: Calls `update(delta, time)` every frame. Returns `{ start(), stop(), isRunning() }`.
+
+Special attributes: `on` (events), `style` (object or string), `key` (list matching), `ref`, `onMount`, `onUnmount` (lifecycle).
