@@ -12,12 +12,14 @@ import { Info } from './components/Info.js';
  * @returns {Object} Virtual node.
  */
 function view(state) {
-  const allCompleted = state.todos.length > 0 && state.todos.every((todo) => todo.completed);
+  const hasTodos = state.todos.length > 0;
+  const allCompleted = hasTodos && state.todos.every((todo) => todo.completed);
 
   return h('div', {}, [
     h('section', { class: 'todoapp' }, [
       Header(state),
-      h('section', { class: 'main' }, [
+      // The list and the footer are only shown when there is at least one todo.
+      hasTodos && h('section', { class: 'main' }, [
         h('input', {
           id: 'toggle-all',
           class: 'toggle-all',
@@ -28,7 +30,7 @@ function view(state) {
         h('label', { for: 'toggle-all' }, 'Mark all as complete'),
         TodoList(filterTodos(state.todos, state.filter)),
       ]),
-      Footer(state.todos, state.filter),
+      hasTodos && Footer(state.todos, state.filter),
     ]),
     Info(),
   ]);
