@@ -1,15 +1,33 @@
 // Jobs waiting for the next frame. A Set means the same job only runs once per frame.
 const queue = new Set();
-let scheduled = false;
+let frameId = null;
+let flushing = false;
 
 /**
  * Runs every queued job, once each.
  */
 function flush() {
-  scheduled = false;
+  frameId = null;
   const jobs = [...queue];
   queue.clear();
-  jobs.forEach((job) => job());
+  flushing = true;
+  try {
+    jobs.forEach((job) => job());
+  } finally {
+    flushing = false;
+  }
+}
+
+/**
+ * Runs the queued jobs now instead of waiting for the next frame. Used after
+ * a key press or click, so the page is up to date before the next one
+ * arrives. Does nothing while jobs are already running (e.g. a blur fired by
+ * a render): those jobs stay queued for the next frame.
+ */
+export function flushRenders() {
+  if (frameId === null || flushing) return;
+  cancelAnimationFrame(frameId);
+  flush();
 }
 
 /**
@@ -23,9 +41,8 @@ function flush() {
  */
 export function scheduleRender(job) {
   queue.add(job);
-  if (scheduled) return;
-  scheduled = true;
-  requestAnimationFrame(flush);
+  if (frameId !== null) return;
+  frameId = requestAnimationFrame(flush);
 }
 
 /**

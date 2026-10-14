@@ -86,19 +86,23 @@ export function createElement(vnode) {
 }
 
 /**
- * Renders a virtual node into a container, replacing whatever was there.
+ * Renders a virtual node, or a list of them, into a container, replacing
+ * whatever was there.
  *
  * @example
  * render(h('h1', {}, ['todos']), document.getElementById('app'));
  *
- * @param {Object} vnode - The virtual node to render.
+ * @param {Object|Array} vnode - The virtual node to render, or a list of them.
  * @param {HTMLElement} container - The element to render into.
- * @returns {Node} The rendered DOM node.
+ * @returns {Node|Node[]} The rendered DOM node, or the list of nodes.
  */
 export function render(vnode, container) {
   Array.from(container.childNodes).forEach(unmount);
-  const el = createElement(vnode);
-  container.replaceChildren(el);
+  const nodes = (Array.isArray(vnode) ? vnode : [vnode])
+    .flat(Infinity)
+    .filter((child) => child !== null && child !== undefined && child !== false && child !== true)
+    .map(createElement);
+  container.replaceChildren(...nodes);
   flushMounts();
-  return el;
+  return Array.isArray(vnode) ? nodes : nodes[0];
 }

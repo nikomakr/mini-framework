@@ -1,8 +1,19 @@
+import { flushRenders } from './scheduler.js';
+
 // Events that do not bubble cannot be caught at the root, so they are set on the element itself.
 const NON_BUBBLING = new Set(['focus', 'blur', 'mouseenter', 'mouseleave', 'load', 'error', 'scroll']);
 
 // Page-wide events that only fire on the window, not on the document.
 const WINDOW_EVENTS = new Set(['blur', 'focus', 'resize']);
+
+// One-off user actions. After their handlers run, the page is updated at once rather than on
+// the next frame, so a fast second key press or click always sees the result of the first.
+// Continuous events (mousemove, scroll, ...) still update at most once per frame.
+const DISCRETE = new Set([
+  'keydown', 'keyup', 'keypress', 'beforeinput', 'input', 'change', 'submit',
+  'click', 'dblclick', 'contextmenu', 'mousedown', 'mouseup', 'pointerdown', 'pointerup',
+  'touchstart', 'touchend', 'focus', 'blur', 'focusin', 'focusout', 'cut', 'copy', 'paste',
+]);
 
 // Elements where the user is typing; page-wide key handlers ignore them.
 const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
@@ -29,6 +40,15 @@ function isTyping(event) {
 }
 
 /**
+ * Brings the page up to date straight away after a one-off user action.
+ *
+ * @param {Event} event
+ */
+function renderAfter(event) {
+  if (DISCRETE.has(event.type)) flushRenders();
+}
+
+/**
  * Runs the page-wide handlers registered for an event's type.
  *
  * @param {Event} event
@@ -40,6 +60,7 @@ function runGlobal(event) {
     if (event.type.startsWith('key') && !options.allowInInputs && isTyping(event)) return;
     handler(event);
   });
+  renderAfter(event);
 }
 
 /**
@@ -71,6 +92,7 @@ function dispatch(event) {
   }
 
   if (!stopped) runGlobal(event);
+  renderAfter(event);
 }
 
 /**
@@ -132,7 +154,10 @@ export function setEvents(el, on = {}) {
     if (isDelegated(type)) {
       listenAtRoot(type);
     } else {
-      el[`on${type}`] = (event) => handler.call(el, event, el);
+      el[`on${type}`] = (event) => {
+        handler.call(el, event, el);
+        renderAfter(event);
+      };
     }
   });
 
@@ -174,7 +199,7 @@ export function onKey(bindings) {
  * 'blur', 'focus' and 'resize' are listened to on the window.
  *
  * @example
- * const stop = onGlobal('keydown', (event) => console.log(event.key));
+ * const stop = onGlobal('keydown', (event) => movePlayer(event.key));
  * stop(); // no longer listening
  *
  * @param {string} type - Event type, e.g. 'keydown'.

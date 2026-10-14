@@ -18,7 +18,8 @@ import { unmount } from './lifecycle.js';
  * @param {Object} options
  * @param {HTMLElement} options.root - The element the app is rendered into.
  * @param {Object} [options.store] - A store from createStore().
- * @param {Function} options.view - Receives the state, returns a virtual node from h().
+ * @param {Function} options.view - Receives the state, returns a virtual node from h()
+ *   (or a list of them, to put several elements directly in `root`).
  * @returns {{ refresh: Function, unmount: Function }} Controls for the running app.
  */
 export function createApp({ root, store, view }) {

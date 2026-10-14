@@ -14,6 +14,8 @@ export function Header({ newTitle }) {
       class: 'new-todo',
       placeholder: 'What needs to be done?',
       autofocus: true,
+      // `autofocus` only works on elements in the HTML file, not ones added later, so focus it here.
+      onMount: (input) => input.focus(),
       value: newTitle,
       on: {
         input: (event) => setNewTitle(event.target.value),

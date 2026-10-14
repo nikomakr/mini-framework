@@ -104,7 +104,7 @@ createApp({ root: document.getElementById('app'), store, view });
 Use `h(tag, attrs, children)` to create a virtual node, then pass it to `render` together with the DOM element it should appear in.
 
 ```js
-import { h, render } from './framework/index.js';
+import { h, render } from '/framework/index.js';
 
 const title = h('h1', {}, ['Hello, world!']);
 
@@ -120,7 +120,7 @@ render(title, document.getElementById('app'));
 When an element has no attributes, you can skip the `attrs` argument:
 
 ```js
-import { h, render } from './framework/index.js';
+import { h, render } from '/framework/index.js';
 
 const paragraph = h('p', 'This paragraph has no attributes.');
 
@@ -132,7 +132,7 @@ render(paragraph, document.getElementById('app'));
 The second argument of `h` is an object. Each key is the name of an attribute and each value is what to set it to.
 
 ```js
-import { h, render } from './framework/index.js';
+import { h, render } from '/framework/index.js';
 
 const form = h('form', { id: 'signup', class: 'form' }, [
   h('label', { for: 'name' }, ['Name']),
@@ -171,7 +171,7 @@ Two names are not regular attributes: `on` is used for events (see [Create an ev
 The third argument of `h` is the list of children. A child can be a string, a number, or another `h(...)` node, so you can nest elements as deep as you need.
 
 ```js
-import { h, render } from './framework/index.js';
+import { h, render } from '/framework/index.js';
 
 const fruits = ['Apple', 'Banana', 'Cherry'];
 
@@ -198,7 +198,127 @@ What to know about children:
 
 ## Create an event
 
-_To be written._
+Events are declared on the element, inside the `on` attribute. Each key is the event name without the `on` prefix (`click`, not `onclick`), and each value is the function to run. You never call `addEventListener()` yourself: the framework registers the handler for you and removes it when the element leaves the page.
+
+### Handle a click
+
+```js
+import { h, render } from '/framework/index.js';
+
+const button = h('button', {
+  on: {
+    click: () => console.log('Button clicked!'),
+  },
+}, ['Click me']);
+
+render(button, document.getElementById('app'));
+```
+
+An element can listen to several events at once: `on: { click: save, mouseover: highlight }`.
+
+### Handle a double-click
+
+Use `dblclick`. TodoMVC uses it to start editing a todo.
+
+```js
+import { h, render } from '/framework/index.js';
+
+const text = h('p', {
+  on: {
+    dblclick: () => console.log('Double-clicked!'),
+  },
+}, ['Double-click this text']);
+
+render(text, document.getElementById('app'));
+```
+
+### What a handler receives
+
+A handler is called with two arguments:
+
+- **`event`**: the browser's event object, so `event.target.value`, `event.key` and `event.preventDefault()` all work as usual.
+- **`el`**: the element that declared the handler. This can differ from `event.target`: clicking a `<span>` inside a `<button>` gives the span as `event.target` and the button as `el`.
+
+Events bubble up through the parents as they do in the browser, and `event.stopPropagation()` stops them.
+
+```js
+import { h, render } from '/framework/index.js';
+
+const input = h('input', {
+  placeholder: 'Type something',
+  on: {
+    input: (event) => console.log('Value is now', event.target.value),
+  },
+});
+
+render(input, document.getElementById('app'));
+```
+
+### Keyboard shortcuts with `onKey`
+
+`onKey(bindings)` builds a `keydown` or `keyup` handler that runs a different function for each key. Key names are the values of `event.key`, such as `'Enter'`, `'Escape'`, `'ArrowUp'` or `'a'`. Other keys are ignored.
+
+```js
+import { h, render, onKey } from '/framework/index.js';
+
+const input = h('input', {
+  placeholder: 'Press Enter or Escape',
+  on: {
+    keydown: onKey({
+      Enter: (event) => console.log('Saved:', event.target.value),
+      Escape: (event, el) => el.blur(),
+    }),
+  },
+});
+
+render(input, document.getElementById('app'));
+```
+
+### Events on the whole page with `onGlobal`
+
+Some events belong to the page rather than to one element, such as game controls or resizing the window. `onGlobal(type, handler)` listens to them and returns a function that stops listening.
+
+```js
+import { onGlobal } from '/framework/index.js';
+
+const stopListening = onGlobal('keydown', (event) => {
+  console.log('Key pressed:', event.key);
+});
+
+// Later, when it is no longer needed:
+stopListening();
+```
+
+Key events typed inside an input, text area, select or editable element are ignored by default, so typing in a form does not trigger game controls. Pass `{ allowInInputs: true }` to receive them as well:
+
+```js
+onGlobal('keydown', (event) => console.log('Key pressed:', event.key), { allowInInputs: true });
+```
+
+`blur`, `focus` and `resize` are listened to on the window. Every other type is listened to on the document.
+
+### Held keys with `createKeyState`
+
+For smooth movement, a game loop needs to know which keys are held down at each frame, rather than waiting for the keyboard to repeat. `createKeyState()` keeps track of them:
+
+```js
+import { createKeyState } from '/framework/index.js';
+
+const keys = createKeyState();
+
+// Inside a game loop, once per frame:
+if (keys.isDown('ArrowUp')) moveUp();
+console.log(keys.pressed()); // e.g. ['ArrowUp', ' ']
+
+// When the game ends:
+keys.destroy();
+```
+
+Every key is released when the window loses focus or the tab is hidden, so none stay stuck.
+
+### Events that do not bubble
+
+`focus`, `blur`, `mouseenter`, `mouseleave`, `scroll`, `load` and `error` do not bubble, so the framework sets them directly on the element instead of handling them at the root. You declare them the same way, for example `on: { blur: save }`. See [Event delegation](#event-delegation) for how this works.
 
 ## Manage state
 
@@ -298,7 +418,7 @@ The router keeps the **URL** and the **state** in sync. It uses the part of the 
 - **`routes`**: an object whose keys are paths (`'/'`, `'/about'`) and whose values are functions. Each function receives the store and updates it for that route.
 - **`store`**: the store the routes update.
 
-When the page loads, the router applies the route already in the URL, or goes to `#/` if there is none. An unknown path falls back to the `'/'` route.
+When the page loads, the router applies the route already in the URL, or goes to `#/` if there is none. An unknown path, such as `#/nowhere`, also goes to `#/`. The address is replaced rather than added to the history, so the back button does not return to it.
 
 ```js
 import { createStore, createRouter } from '/framework/index.js';
@@ -399,7 +519,7 @@ Plain objects are cheap to create and compare, whereas real DOM elements are slo
 - **Children with a `key`** (for example `key: todo.id`) are matched by key, so a list item keeps its element, and its state, when items are added, removed or reordered.
 - **Children without a key** are matched in order.
 
-`value`, `checked` and `selected` are compared with the live element, because the user may have changed them by typing or clicking. They are only set when they differ, so the cursor in an input does not jump. If a re-render moves the focused input, the focus and cursor position are put back.
+`value`, `checked` and `selected` are compared with the live element, because the user may have changed them by typing or clicking. They are only set when they differ, so the cursor in an input does not jump. If a re-render moves the focused input and it loses the focus, the focus and cursor position are put back. If the new page moves the focus on purpose (for example a `ref` that focuses an input), it is left there.
 
 ### Event delegation
 
@@ -434,7 +554,7 @@ The router uses the part of the URL after `#`. Changing it:
 - **needs no server set-up**: any static server works, and refreshing on `#/active` still loads the same `index.html`;
 - **adds a history entry**, so the back and forward buttons work.
 
-`createRouter` listens to `window.onhashchange`, finds the route for the new path, and calls it with the store. The route updates the state, and the normal loop redraws the page. An unknown path falls back to the `'/'` route.
+`createRouter` listens to `window.onhashchange`, finds the route for the new path, and calls it with the store. The route updates the state, and the normal loop redraws the page. A missing or unknown path is replaced with `#/`.
 
 ### Rendering once per frame
 
@@ -442,11 +562,13 @@ Several `setState` calls can happen in a row (for example, "Clear completed" rem
 
 So `createApp` does not redraw straight away. It queues the redraw with `requestAnimationFrame`, in a `Set`, so the same job is queued only once. However many times the state changes before the next frame, the page is redrawn **once**, just before the browser paints. This keeps updates smooth at 60 frames per second.
 
+There is one exception. After a one-off user action (a key press, click, `input`, `change`, `focus` or `blur`), the framework redraws as soon as the handlers have run, instead of waiting for the frame. Otherwise a key pressed within the same frame as Enter would land in an input that has not been cleared yet. Each action still causes one redraw at most, however many `setState` calls its handlers make. Continuous events such as `mousemove` and `scroll` keep waiting for the frame.
+
 ### Lifecycle hooks
 
 Some code needs the real element, for example to focus an input or measure its size. Three special attributes give access to it:
 
-- `ref: (el) => …` receives the element once it is on the page, and `null` when it is removed.
+- `ref: (el) => …` receives the element once it is on the page, and `null` when it is removed. If a re-render gives a different `ref` function, the old one receives `null` and the new one receives the element. So `ref: isEditing ? focusAtEnd : undefined` (with `focusAtEnd` defined once, outside the view) runs `focusAtEnd` exactly when editing starts, which is how TodoMVC focuses the edit input.
 - `onMount: (el) => …` runs once the element is on the page.
 - `onUnmount: (el) => …` runs just before the element is removed.
 
@@ -461,13 +583,13 @@ These names are reserved, so they never appear as HTML attributes.
 Everything below is imported from `/framework/index.js`.
 
 - `h(tag, attrs, children)`: Creates a virtual node. `attrs` and `children` are optional.
-- `render(vnode, container)`: Builds real elements from a virtual node and puts them in `container`, replacing what was there.
-- `patch(container, oldVNode, newVNode)`: Updates `container` from `oldVNode` to `newVNode`, changing only what differs.
+- `render(vnode, container)`: Builds real elements from a virtual node (or a list of them) and puts them in `container`, replacing what was there.
+- `patch(container, oldVNode, newVNode)`: Updates `container` from `oldVNode` to `newVNode`, changing only what differs. Both can also be lists of virtual nodes.
 - `onKey(bindings)`: Returns a key handler that runs a function per key, e.g. `onKey({ Enter: save, Escape: cancel })`.
 - `onGlobal(type, handler, options)`: Listens to an event across the whole page. Returns a function that stops listening.
 - `createKeyState()`: Tracks which keys are held down. Returns `{ isDown(key), pressed(), destroy() }`.
 - `createStore(initialState)`: Creates a store. Returns `{ getState(), setState(changes), subscribe([selector,] listener) }`.
-- `createApp({ root, store, view })`: Renders `view(state)` into `root` and redraws when the store changes. Returns `{ refresh(), unmount() }`.
+- `createApp({ root, store, view })`: Renders `view(state)` into `root` and redraws when the store changes. `view` may return a list of virtual nodes to place several elements directly in `root`. Returns `{ refresh(), unmount() }`.
 - `createRouter({ routes, store })`: Runs the route matching the URL after `#`, now and whenever it changes.
 - `createLoop(update)`: Calls `update(delta, time)` every frame. Returns `{ start(), stop(), isRunning() }`.
 

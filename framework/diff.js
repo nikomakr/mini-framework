@@ -174,8 +174,22 @@ function patchNode(node, oldVNode, newVNode) {
 }
 
 /**
+ * Turns a tree, or a list of trees, into a list of the nodes to put on the page.
+ *
+ * @param {Object|Array} vnode
+ * @returns {Array}
+ */
+function toList(vnode) {
+  const list = Array.isArray(vnode) ? vnode.flat(Infinity) : [vnode];
+  return list.filter((child) => child !== null && child !== undefined && child !== false && child !== true);
+}
+
+/**
  * Updates what is on the page so it matches a new virtual node, changing
  * only what is different from the previous one.
+ *
+ * A list of virtual nodes can be given instead of one, to put several
+ * elements side by side directly in the container.
  *
  * @example
  * const before = h('p', {}, ['Hello']);
@@ -183,17 +197,18 @@ function patchNode(node, oldVNode, newVNode) {
  * patch(app, before, h('p', {}, ['Hello again'])); // only the text changes
  *
  * @param {HTMLElement} container - The element the tree was rendered into.
- * @param {Object|undefined} oldVNode - The tree currently on the page (undefined on first render).
- * @param {Object} newVNode - The tree the page should now match.
- * @returns {Node} The root node on the page.
+ * @param {Object|Array|undefined} oldVNode - The tree currently on the page (undefined on first render).
+ * @param {Object|Array} newVNode - The tree the page should now match.
+ * @returns {Node|Node[]} The root node on the page, or the list of root nodes.
  */
 export function patch(container, oldVNode, newVNode) {
+  const roots = () => (Array.isArray(newVNode) ? Array.from(container.childNodes) : container.firstChild);
+
   if (!oldVNode || !container.firstChild) {
     Array.from(container.childNodes).forEach(unmount);
-    const el = createElement(newVNode);
-    container.replaceChildren(el);
+    container.replaceChildren(...toList(newVNode).map(createElement));
     flushMounts();
-    return el;
+    return roots();
   }
 
   // Remember focus and cursor, in case a focused input is moved.
@@ -205,10 +220,12 @@ export function patch(container, oldVNode, newVNode) {
     selection = null;
   }
 
-  const root = patchNode(container.firstChild, oldVNode, newVNode);
+  updateChildren(container, toList(oldVNode), toList(newVNode));
   flushMounts();
 
-  if (active && active !== document.activeElement && active.isConnected) {
+  // Only put the focus back if moving the input lost it, not if the new page moved it on purpose.
+  const lostFocus = !document.activeElement || document.activeElement === document.body;
+  if (active && active !== document.activeElement && active.isConnected && lostFocus) {
     active.focus();
     if (selection && selection[0] !== null && selection[0] !== undefined) {
       try {
@@ -219,5 +236,5 @@ export function patch(container, oldVNode, newVNode) {
     }
   }
 
-  return root;
+  return roots();
 }

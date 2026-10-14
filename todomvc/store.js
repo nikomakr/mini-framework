@@ -1,11 +1,5 @@
 import { createStore } from '../framework/index.js';
 
-/**
- * The single store for the TodoMVC app.
- *
- * - todos: Array<{ id: string, title: string, completed: boolean }>
- * - newTitle: the text currently typed in the "What needs to be done?" input
- */
 // Key under which the todos are saved in the browser.
 const STORAGE_KEY = 'todos-mini-framework';
 
@@ -40,7 +34,22 @@ function saveTodos(todos) {
   }
 }
 
-export const store = createStore({ todos: loadTodos(), newTitle: '', filter: 'all' });
+/**
+ * The single store for the TodoMVC app.
+ *
+ * - todos: Array<{ id: string, title: string, completed: boolean }>
+ * - newTitle: the text currently typed in the "What needs to be done?" input
+ * - filter: which todos are shown, 'all', 'active' or 'completed'
+ * - editingId: the id of the todo being edited, or null
+ * - editTitle: the text currently typed in the edit input
+ */
+export const store = createStore({
+  todos: loadTodos(),
+  newTitle: '',
+  filter: 'all',
+  editingId: null,
+  editTitle: '',
+});
 
 // Save only when the todos change, not on every keystroke in the input.
 store.subscribe((state) => state.todos, (state) => saveTodos(state.todos));
@@ -121,19 +130,52 @@ export function deleteTodo(id) {
     todos: state.todos.filter((todo) => todo.id !== id),
   }));
 }
+
 /**
- * Updates the title of one todo.
+ * Starts editing a todo, with its current title in the edit input.
  *
  * @param {string} id
- * @param {string} title
  */
-export function updateTodo(id, title) {
+export function startEditing(id) {
+  const todo = store.getState().todos.find((item) => item.id === id);
+  if (!todo) return;
+  store.setState({ editingId: id, editTitle: todo.title });
+}
+
+/**
+ * Keeps the store in sync with what is typed in the edit input.
+ *
+ * @param {string} text
+ */
+export function setEditTitle(text) {
+  store.setState({ editTitle: text });
+}
+
+/**
+ * Saves the todo being edited with the trimmed title, or removes it if the
+ * title is empty. Does nothing if no todo is being edited, so the blur that
+ * follows Enter or Escape cannot save a second time.
+ */
+export function saveEditing() {
+  const { editingId, editTitle } = store.getState();
+  if (editingId === null) return;
+  const title = editTitle.trim();
   store.setState((state) => ({
-    todos: state.todos.map((todo) =>
-      todo.id === id ? { ...todo, title } : todo
-    ),
+    todos: title
+      ? state.todos.map((todo) => (todo.id === editingId ? { ...todo, title } : todo))
+      : state.todos.filter((todo) => todo.id !== editingId),
+    editingId: null,
+    editTitle: '',
   }));
 }
+
+/**
+ * Stops editing without saving, so the todo keeps its previous title.
+ */
+export function cancelEditing() {
+  store.setState({ editingId: null, editTitle: '' });
+}
+
 /**
  * Marks every todo as complete or incomplete.
  *
