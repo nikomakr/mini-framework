@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moving box</title>
+  <link rel="icon" href="data:,">
+  <style>
+    body {
+      margin: 0;
+      padding: 24px;
+      font: 14px/1.4 system-ui, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+
+    .arena {
+      position: relative;
+      width: 480px;
+      height: 320px;
+      background: #fff;
+      border: 2px solid #333;
+      /* Changes inside the arena never cause layout or paint outside it. */
+      contain: layout paint;
+    }
+
+    .box {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      /* Only the element that moves gets its own layer. */
+      will-change: transform;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import { createElement, setAttribute } from './render.js';
 import { setEvents } from './events.js';
 import { updateHooks, flushMounts, unmount } from './lifecycle.js';
+import { isMemo, resolveMemo, sameDeps } from './vnode.js';
 
 // Live properties: compared with the element itself, as the user may have changed them.
 const PROPERTIES = new Set(['value', 'checked', 'selected']);
@@ -22,7 +23,8 @@ function isText(vnode) {
  * @returns {*}
  */
 function keyOf(vnode) {
-  return isText(vnode) ? undefined : vnode.attrs.key;
+  if (isText(vnode)) return undefined;
+  return isMemo(vnode) ? vnode.key : vnode.attrs.key;
 }
 
 /**
@@ -155,6 +157,16 @@ function updateChildren(parent, oldChildren, newChildren) {
  * @returns {Node} The node now on the page (a new one if it had to be replaced).
  */
 function patchNode(node, oldVNode, newVNode) {
+  if (isMemo(newVNode)) {
+    // Same dependencies: reuse the subtree as it is, without building or comparing it.
+    if (isMemo(oldVNode) && sameDeps(oldVNode, newVNode)) {
+      newVNode.resolved = oldVNode.resolved;
+      return node;
+    }
+    return patchNode(node, isMemo(oldVNode) ? oldVNode.resolved : oldVNode, resolveMemo(newVNode));
+  }
+  if (isMemo(oldVNode)) return patchNode(node, oldVNode.resolved, newVNode);
+
   if (isText(oldVNode) && isText(newVNode)) {
     if (String(oldVNode) !== String(newVNode)) node.nodeValue = String(newVNode);
     return node;

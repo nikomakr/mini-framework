@@ -6,24 +6,8 @@
 
 To check, run this from the repository root.
 
-zsh:
-
 ```zsh
 ls package.json node_modules 2>&1; grep -rnE "from +['\"][^./]|https?://[^\"']+\.(js|css)" framework todomvc || echo "No external libraries"
-```
-
-bash:
-
-```bash
-ls package.json node_modules 2>&1; grep -rnE "from +['\"][^./]|https?://[^\"']+\.(js|css)" framework todomvc || echo "No external libraries"
-```
-
-Expected output (both):
-
-```
-ls: node_modules: No such file or directory
-ls: package.json: No such file or directory
-No external libraries
 ```
 
 - No `package.json` or `node_modules`: nothing can be installed from npm.
@@ -86,16 +70,72 @@ It then explains each step, and why it was built that way: virtual DOM, diffing,
 
 ## Open the Web Developer Tools (Ctrl+Shift+I) and check for the classes, ids, etc. Does it correctly correspond to those in the examples?
 
-**Yes** — in the Elements tab, both show the same structure:
+**Yes** — both show the same elements, classes and ids.
 
+Some elements only appear once there are todos (as in the reference), so add some first:
+
+1. Start the server from the repository root:
+
+   zsh:
+
+   ```zsh
+   node server.js
+   ```
+
+   bash:
+
+   ```bash
+   node server.js
+   ```
+
+2. Open <http://localhost:65500/todomvc/> and the [reference example](https://todomvc.com/examples/javascript-es6/dist/) side by side.
+3. In both, add two todos and tick one. Now every element is on the page.
+4. Open DevTools (Ctrl+Shift+I, or Cmd+Option+I on a Mac) → **Elements**.
+5. Expand `<body>`, then `<section class="todoapp">`, clicking the arrows to open each level.
+6. To jump to an element, press Ctrl+F (Cmd+F on a Mac) inside the Elements tab and search for a class or id, e.g. `toggle-all` or `clear-completed`.
+
+What you should find:
+
+```html
+<body>
+  <section class="todoapp">
+    <header class="header">
+      <h1>todos</h1>
+      <input class="new-todo" placeholder="What needs to be done?" autofocus>
+    </header>
+    <section class="main">                          <!-- only when there is at least one todo -->
+      <input id="toggle-all" class="toggle-all" type="checkbox">
+      <label for="toggle-all">Mark all as complete</label>
+      <ul class="todo-list">
+        <li class="completed">                      <!-- one li per todo; "completed" when ticked -->
+          <div class="view">
+            <input class="toggle" type="checkbox">
+            <label>…</label>
+            <button class="destroy"></button>
+          </div>
+          <input class="edit">
+        </li>
+      </ul>
+    </section>
+    <footer class="footer">                         <!-- only when there is at least one todo -->
+      <span class="todo-count"><strong>1</strong> item left</span>
+      <ul class="filters">
+        <li><a class="selected" href="#/">All</a></li>
+        <li><a href="#/active">Active</a></li>
+        <li><a href="#/completed">Completed</a></li>
+      </ul>
+      <button class="clear-completed">Clear completed</button>   <!-- only when a todo is ticked -->
+    </footer>
+  </section>
+  <footer class="info">
+    <p>Double-click to edit a todo</p>
+    <p>Created by …</p>
+    <p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
+  </footer>
+</body>
 ```
-body
-├── section.todoapp
-│   ├── header.header > h1, input.new-todo
-│   ├── section.main > input#toggle-all.toggle-all, label, ul.todo-list > li > div.view, input.edit
-│   └── footer.footer > span.todo-count, ul.filters, button.clear-completed
-└── footer.info
-```
+
+Double-clicking a todo adds the class `editing` to its `li` (`class="completed editing"` if it is also ticked).
 
 ## Can you add a to-do element to the to-do list?
 
@@ -150,7 +190,7 @@ body
 
 - small ES modules, each file with one job (e.g. `vnode.js` builds elements, `diff.js` updates the page, `router.js` handles the URL)
 - JSDoc comments on every exported function
-- no `console.log`
+- no `console.log` in the framework, the app or the examples (the server prints one start-up message on purpose)
 - no unused imports
 - consistent formatting: 2-space indentation, semicolons, single quotes
 - the app never touches the DOM itself, except inside `ref`/`onMount` (focusing inputs)
@@ -160,26 +200,11 @@ To check, run this from the repository root.
 zsh:
 
 ```zsh
-awk 'FNR==1{prev=""} /^export (function|const)/ && prev !~ /\*\// {print FILENAME": "$0; bad=1} NF{prev=$0} END{if(!bad) print "Every exported function has JSDoc"}' framework/*.js todomvc/**/*.js
-grep -rn 'console\.log' framework todomvc || echo 'No console.log'
-perl -0ne 'my $s = $_; for my $n (grep length, map { split /[\s,]+/ } $s =~ /import\s*\{([^}]*)\}/g) { my $c = () = $s =~ /\b\Q$n\E\b/g; print "$ARGV: $n is never used\n" if $c < 2 }' framework/*.js todomvc/**/*.js | grep . || echo 'No unused imports'
+awk 'FNR==1{prev=""} /^export (function|const)/ && prev !~ /\*\// {print FILENAME": "$0; bad=1} NF{prev=$0} END{if(!bad) print "Every exported function has JSDoc"}' framework/*.js todomvc/**/*.js examples/**/*.js
+grep -rn 'console\.log' framework todomvc examples || echo 'No console.log'
+perl -0ne 'my $s = $_; for my $n (grep length, map { split /[\s,]+/ } $s =~ /import\s*\{([^}]*)\}/g) { my $c = () = $s =~ /\b\Q$n\E\b/g; print "$ARGV: $n is never used\n" if $c < 2 }' framework/*.js todomvc/**/*.js examples/**/*.js | grep . || echo 'No unused imports'
 ```
 
-bash (lists the folders, as bash does not search subfolders with `**` by default):
-
-```bash
-awk 'FNR==1{prev=""} /^export (function|const)/ && prev !~ /\*\// {print FILENAME": "$0; bad=1} NF{prev=$0} END{if(!bad) print "Every exported function has JSDoc"}' framework/*.js todomvc/*.js todomvc/components/*.js
-grep -rn 'console\.log' framework todomvc || echo 'No console.log'
-perl -0ne 'my $s = $_; for my $n (grep length, map { split /[\s,]+/ } $s =~ /import\s*\{([^}]*)\}/g) { my $c = () = $s =~ /\b\Q$n\E\b/g; print "$ARGV: $n is never used\n" if $c < 2 }' framework/*.js todomvc/*.js todomvc/components/*.js | grep . || echo 'No unused imports'
-```
-
-Expected output (both):
-
-```
-Every exported function has JSDoc
-No console.log
-No unused imports
-```
 
 # Bonus
 
@@ -191,15 +216,41 @@ To check: DevTools → Performance → record while adding, ticking and filterin
 
 ## +Is it easier to handle the DOM using the framework than it is to use plain HTML and JS?
 
-**Yes** — you describe the page once from the state, and the framework keeps the DOM in sync:
+**Yes** — you describe what the page should look like for the current state, and the framework works out the DOM changes.
+
+The same todo item, both ways:
 
 ```js
+// With the framework: one description, used for the first render and every update
 h('li', { key: todo.id, class: todo.completed ? 'completed' : null }, [
   h('label', { on: { dblclick: () => startEditing(todo.id) } }, todo.title),
 ]);
 ```
 
-In plain JS this needs `createElement`, `classList`, `addEventListener` and manual updates and clean-up on every change.
+```js
+// Plain JS: build it…
+const li = document.createElement('li');
+const label = document.createElement('label');
+label.textContent = todo.title;
+label.addEventListener('dblclick', () => startEditing(todo.id));
+li.append(label);
+list.append(li);
+
+// …update it by hand after every change…
+li.classList.toggle('completed', todo.completed);
+label.textContent = todo.title;
+
+// …and remove the listener and the element yourself when the todo is deleted
+```
+
+What the framework handles for you:
+
+- **Updates**: only what changed is touched, so you never write update code.
+- **Lists**: items with a `key` are added, moved and removed automatically.
+- **Events**: declared with `on`, cleaned up when the element is removed.
+- **Focus and caret**: kept when the page redraws, so typing is never interrupted.
+
+To see this in the TodoMVC app, open [todomvc/components/TodoItem.js](todomvc/components/TodoItem.js). The whole todo item (checkbox, label, delete button and edit input) is built with `h()`; there is no `document.createElement`, `addEventListener` or `classList`. The only direct DOM call is putting the cursor in the edit input when editing starts.
 
 ## +Is it easier to handle the routing in JS using the framework?
 
@@ -223,12 +274,85 @@ The framework handles the first load, links, back/forward, and sends unknown URL
 **Yes**
 
 - **Recursive**: building (`createElement`), updating (`patchNode` → `updateChildren`) and removing (`unmount`) all walk the tree recursively.
-- **No unnecessary requests**: DevTools → Network shows only the project's own 20 files (the HTML page, 2 CSS files and 17 JavaScript modules), loaded once; there are no API calls.
-- **No unnecessary work**: `localStorage` is written only when the todos change, not on every key press.
+- **No unnecessary requests**: DevTools → Network shows only the project's own 21 files (the HTML page, 2 CSS files and 18 JavaScript modules), each loaded once, all from `localhost`; there are no API calls.
+- **No unnecessary work**:
+  - `localStorage` is written only when the todos change, not on every key press.
+  - `memo` skips building and comparing parts of the page that have not changed.
+  - Many state changes in one frame cause a single redraw.
+
+To check the recursion in the code, run this from the repository root. Each line shows a function calling itself (or `patchNode` and `updateChildren` calling each other) for every child.
+
+zsh:
+
+```zsh
+grep -n "createElement(child)" framework/render.js; grep -nE "updateChildren\(node|patchNode\(match" framework/diff.js; grep -n "forEach(unmount)" framework/lifecycle.js
+```
+
+Expected output (both):
+
+```
+84:    el.appendChild(createElement(child));
+136:    const node = match ? patchNode(match.node, match.vnode, vnode) : createElement(vnode);
+184:  updateChildren(node, oldVNode.children, newVNode.children);
+64:    Array.from(node.childNodes).forEach(unmount);
+```
+
+| Line | What it shows |
+|---|---|
+| `render.js:84` | `createElement` builds each child by calling itself |
+| `diff.js:136` | `updateChildren` calls `patchNode` for each child |
+| `diff.js:184` | `patchNode` calls `updateChildren` for that child's own children |
+| `lifecycle.js:64` | `unmount` calls itself for each child before an element is removed |
+
+To see it while the app runs: DevTools → **Performance** → record → tick a todo → stop. In the flame chart under the click, `patchNode` → `updateChildren` → `patchNode` → … is stacked several levels deep, one pair per level of the page (`section` → `ul` → `li` → `div` → `input`).
 
 ## +Is the code using asynchronicity to increase performance?
 
-**Yes** — state changes do not redraw straight away: the redraw is queued with `requestAnimationFrame`, so any number of changes in one frame cause a single redraw just before the browser paints. One-off actions (key presses, clicks) redraw as soon as their handlers finish, so fast typing is never lost.
+**Yes** — changing the state does not redraw the page straight away. The redraw is scheduled with `requestAnimationFrame`, so any number of changes in the same frame cause **one** redraw, just before the browser paints. (Typing in a form field is the one exception: it redraws as soon as the key is handled, so fast typing is never lost.)
+
+To check, without reading any code:
+
+1. Start the server from the repository root:
+
+   zsh:
+
+   ```zsh
+   node server.js
+   ```
+
+   bash:
+
+   ```bash
+   node server.js
+   ```
+
+2. Open <http://localhost:65500/todomvc/>.
+3. Open DevTools (Ctrl+Shift+I, or Cmd+Option+I on a Mac) → **Console**.
+4. Paste this and press Enter. It makes 100 state changes in a row and counts how many times the page is redrawn:
+
+```js
+const { h, createStore, createApp } = await import('/framework/index.js');
+const store = createStore({ count: 0 });
+let redraws = 0;
+createApp({ root: document.createElement('div'), store, view: (state) => { redraws++; return h('p', {}, [String(state.count)]); } });
+redraws = 0;
+for (let i = 0; i < 100; i++) store.setState((state) => ({ count: state.count + 1 }));
+console.log('Redraws straight after 100 changes:', redraws);
+await new Promise((done) => requestAnimationFrame(() => setTimeout(done)));
+console.log('Redraws after the next frame:', redraws);
+```
+
+Expected output:
+
+```
+Redraws straight after 100 changes: 0
+Redraws after the next frame: 1
+```
+
+- **0** means nothing was redrawn while the changes were made: the redraw waited (asynchronous).
+- **1** means all 100 changes were then drawn in a single redraw, instead of 100.
+
+The snippet only creates its own small test app in memory; it does not touch the TodoMVC page or its todos. If Chrome asks you to type "allow pasting" first, that is its normal safety prompt for the console.
 
 ## +Do you think this project is well done in general?
 
@@ -249,19 +373,6 @@ awk 'FNR==1{p=""} /^export (function|const)/ && p !~ /\*\// {b=1} NF{p=$0} END{p
 grep -rq 'console\.log' framework todomvc && echo "FAIL  console.log found" || echo "OK    no console.log"
 perl -0ne 'my $s = $_; for my $n (grep length, map { split /[\s,]+/ } $s =~ /import\s*\{([^}]*)\}/g) { my $c = () = $s =~ /\b\Q$n\E\b/g; print "$ARGV\n" if $c < 2 }' framework/*.js todomvc/**/*.js | grep -q . && echo "FAIL  unused imports" || echo "OK    no unused imports"
 ok=1; for f in framework/*.js todomvc/**/*.js; do node --input-type=module --check < "$f" 2>/dev/null || { echo "FAIL  syntax error in $f"; ok=; }; done; [ -n "$ok" ] && echo "OK    all JavaScript is valid"
-```
-
-bash:
-
-```bash
-{ [ -e package.json ] || [ -e node_modules ]; } && echo "FAIL  dependencies found" || echo "OK    no dependencies"
-grep -rqE "from +['\"][^./]|https?://[^\"']+\.(js|css)" framework todomvc && echo "FAIL  external library" || echo "OK    no external libraries"
-for s in 'Overview' 'Create an element' 'Add attributes' 'Create an event' 'Nest elements' 'How it works'; do grep -q "^## $s" docs/DOCUMENTATION.md && echo "OK    docs: $s" || echo "FAIL  docs: $s"; done
-grep -q 'To be written' docs/DOCUMENTATION.md && echo "FAIL  docs has placeholders" || echo "OK    docs complete"
-awk 'FNR==1{p=""} /^export (function|const)/ && p !~ /\*\// {b=1} NF{p=$0} END{print b ? "FAIL  missing JSDoc" : "OK    JSDoc on every export"}' framework/*.js todomvc/*.js todomvc/components/*.js
-grep -rq 'console\.log' framework todomvc && echo "FAIL  console.log found" || echo "OK    no console.log"
-perl -0ne 'my $s = $_; for my $n (grep length, map { split /[\s,]+/ } $s =~ /import\s*\{([^}]*)\}/g) { my $c = () = $s =~ /\b\Q$n\E\b/g; print "$ARGV\n" if $c < 2 }' framework/*.js todomvc/*.js todomvc/components/*.js | grep -q . && echo "FAIL  unused imports" || echo "OK    no unused imports"
-ok=1; for f in framework/*.js todomvc/*.js todomvc/components/*.js; do node --input-type=module --check < "$f" 2>/dev/null || { echo "FAIL  syntax error in $f"; ok=; }; done; [ -n "$ok" ] && echo "OK    all JavaScript is valid"
 ```
 
 Expected output (both): 13 lines, all starting with `OK`. Any problem prints a line starting with `FAIL`.

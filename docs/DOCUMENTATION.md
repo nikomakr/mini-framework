@@ -26,22 +26,43 @@ The framework is made of ES modules with no dependencies, so there is nothing to
 ### Folder structure
 
 ```
-mini-framework/
-├── server.js            a small static server (Node.js, no dependencies)
-├── framework/           the framework
-│   ├── index.js         everything you can import
-│   ├── vnode.js         h()
-│   ├── render.js        render()
-│   ├── diff.js          patch()
-│   ├── events.js        event handling
-│   ├── state.js         createStore()
-│   ├── router.js        createRouter()
-│   ├── app.js           createApp()
-│   ├── scheduler.js     rendering once per frame, createLoop()
-│   └── lifecycle.js     ref, onMount, onUnmount
-├── todomvc/             the TodoMVC app built with the framework
-└── docs/
-    └── DOCUMENTATION.md this file
+.
+├── AUDIT.md              the audit questions, answered, with commands to check them
+├── README.md             what the project is, how to run it, how the team works
+├── docs                  the documentation
+│   └── DOCUMENTATION.md  this file
+├── examples              small demos of the framework
+│   └── moving-box        game-style demo: arrow keys, createLoop, ref + transform
+│       ├── app.js        the demo's code
+│       └── index.html    the demo's page and styles
+├── framework             the framework itself; import everything from index.js
+│   ├── app.js            createApp(): connects store, view and rendering
+│   ├── diff.js           patch(): updates only what changed on the page
+│   ├── events.js         event delegation, onKey, onGlobal, createKeyState
+│   ├── fps.js            createFpsMeter(): frames-per-second display (development only)
+│   ├── index.js          everything you can import
+│   ├── lifecycle.js      ref, onMount, onUnmount
+│   ├── render.js         render(): builds real elements from virtual nodes
+│   ├── router.js         createRouter(): keeps the URL hash and the state in sync
+│   ├── scheduler.js      one redraw per frame, createLoop()
+│   ├── state.js          createStore(): the app's state and subscriptions
+│   └── vnode.js          h() and memo(): describe elements as plain objects
+├── server.js             small static server (Node.js, no dependencies)
+└── todomvc               the TodoMVC app built with the framework
+    ├── app.js            entry point: the page view, router and createApp
+    ├── components        the parts of the TodoMVC page
+    │   ├── Footer.js     counter, filters and Clear completed
+    │   ├── Header.js     title and the new-todo input
+    │   ├── Info.js       the information footer below the app
+    │   ├── TodoItem.js   one todo: toggle, label, delete and edit input
+    │   └── TodoList.js   the list of todos
+    ├── css               the TodoMVC stylesheets
+    │   ├── base.css      official TodoMVC base styles (local copy)
+    │   └── index.css     official TodoMVC app styles (local copy)
+    ├── index.html        the page that loads the app
+    └── store.js          todo state, actions and localStorage saving
+
+8 directories, 28 files
 ```
 
 ### Run it
@@ -79,7 +100,7 @@ Create `playground.html` in the `mini-framework` folder:
 
 Open `http://localhost:65500/playground.html`. You should see "Hello, world!".
 
-In every example below, replace the contents of the `<script type="module">` tag in this page with the example code.
+***In every example below***, replace the contents of the `<script type="module">` tag in this page with the example code.
 
 ### A minimal app
 
@@ -363,6 +384,8 @@ console.log(store.getState().count); // 2
 
 `subscribe(selector, listener)` runs the listener **only when the selected part changes**. The selector picks the part to watch. This avoids unnecessary work: for example, saving the todos when they change, but not on every key pressed in the input.
 
+The comparison is shallow, so a selector can pick several values at once: `(state) => ({ lives: state.lives, score: state.score })` only counts as a change when `lives` or `score` is different, even though it returns a new object each time.
+
 ```js
 const store = createStore({ count: 0, name: 'Ada' });
 
@@ -406,6 +429,15 @@ store.setState({ count: 6 });      // only the `count` listener runs
 ```
 
 Several stores can exist at the same time; each one is independent.
+
+To keep separate parts of the page from redrawing each other, give each part its own root and a `select`. The app then only redraws when its selected part changes (shallow comparison); its view still receives the whole state:
+
+```js
+createApp({ root: document.getElementById('chat'), store, select: (state) => state.messages, view: renderChat });
+createApp({ root: document.getElementById('board'), store, select: (state) => state.board, view: renderBoard });
+```
+
+A new chat message redraws the chat only, not the board.
 
 ## Routing
 
@@ -544,7 +576,7 @@ Events that do not bubble (`focus`, `blur`, `mouseenter`, `mouseleave`, `scroll`
 The store is a single object that holds the app's state, reachable from every part of the app.
 
 - `setState` never changes the old state. It creates a new object (`{ ...oldState, ...changes }`). This makes it easy to compare "before" and "after", and to give listeners both.
-- `subscribe(selector, listener)` runs the listener only when the selected part changes (compared with `Object.is`). TodoMVC uses this to save the todos to `localStorage` only when they change, not on every key pressed in the input.
+- `subscribe(selector, listener)` runs the listener only when the selected part changes (compared shallowly: an object or array counts as changed only if one of its values is different). TodoMVC uses this to save the todos to `localStorage` only when they change, not on every key pressed in the input.
 
 ### Hash routing
 
@@ -562,7 +594,9 @@ Several `setState` calls can happen in a row (for example, "Clear completed" rem
 
 So `createApp` does not redraw straight away. It queues the redraw with `requestAnimationFrame`, in a `Set`, so the same job is queued only once. However many times the state changes before the next frame, the page is redrawn **once**, just before the browser paints. This keeps updates smooth at 60 frames per second.
 
-There is one exception. After a one-off user action (a key press, click, `input`, `change`, `focus` or `blur`), the framework redraws as soon as the handlers have run, instead of waiting for the frame. Otherwise a key pressed within the same frame as Enter would land in an input that has not been cleared yet. Each action still causes one redraw at most, however many `setState` calls its handlers make. Continuous events such as `mousemove` and `scroll` keep waiting for the frame.
+There is one exception: typing in a form field. After a key press, `input`, `change`, `focus` or `blur` in an `<input>`, `<textarea>` or `<select>`, the framework redraws as soon as the handlers have run, instead of waiting for the frame. Otherwise a key pressed within the same frame as Enter would land in an input that has not been cleared yet. Each action still causes one redraw at most, however many `setState` calls its handlers make.
+
+Everything else waits for the frame, including clicks and page-wide keys from `onGlobal`. A game that calls `setState` on every `keydown` therefore still redraws at most once per frame.
 
 ### Lifecycle hooks
 
@@ -589,8 +623,9 @@ Everything below is imported from `/framework/index.js`.
 - `onGlobal(type, handler, options)`: Listens to an event across the whole page. Returns a function that stops listening.
 - `createKeyState()`: Tracks which keys are held down. Returns `{ isDown(key), pressed(), destroy() }`.
 - `createStore(initialState)`: Creates a store. Returns `{ getState(), setState(changes), subscribe([selector,] listener) }`.
-- `createApp({ root, store, view })`: Renders `view(state)` into `root` and redraws when the store changes. `view` may return a list of virtual nodes to place several elements directly in `root`. Returns `{ refresh(), unmount() }`.
+- `createApp({ root, store, view, select })`: Renders `view(state)` into `root` and redraws when the store changes. `view` may return a list of virtual nodes to place several elements directly in `root`. With `select`, it only redraws when the selected part of the state changes. Returns `{ refresh(), unmount() }`.
 - `createRouter({ routes, store })`: Runs the route matching the URL after `#`, now and whenever it changes.
 - `createLoop(update)`: Calls `update(delta, time)` every frame. Returns `{ start(), stop(), isRunning() }`.
+- `createFpsMeter({ parent })`: For development: shows the frames per second and the slowest frame in a corner of the page. Returns `{ stop() }`.
 
 Special attributes: `on` (events), `style` (object or string), `key` (list matching), `ref`, `onMount`, `onUnmount` (lifecycle).

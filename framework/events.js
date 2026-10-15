@@ -6,13 +6,13 @@ const NON_BUBBLING = new Set(['focus', 'blur', 'mouseenter', 'mouseleave', 'load
 // Page-wide events that only fire on the window, not on the document.
 const WINDOW_EVENTS = new Set(['blur', 'focus', 'resize']);
 
-// One-off user actions. After their handlers run, the page is updated at once rather than on
-// the next frame, so a fast second key press or click always sees the result of the first.
-// Continuous events (mousemove, scroll, ...) still update at most once per frame.
-const DISCRETE = new Set([
-  'keydown', 'keyup', 'keypress', 'beforeinput', 'input', 'change', 'submit',
-  'click', 'dblclick', 'contextmenu', 'mousedown', 'mouseup', 'pointerdown', 'pointerup',
-  'touchstart', 'touchend', 'focus', 'blur', 'focusin', 'focusout', 'cut', 'copy', 'paste',
+// One-off actions in a form field. After their handlers run, the page is updated at once
+// rather than on the next frame, so a key typed straight after Enter always lands in an input
+// that has already been cleared. Everything else, including page-wide game keys, still
+// updates at most once per frame.
+const FIELD_EVENTS = new Set([
+  'keydown', 'keyup', 'keypress', 'beforeinput', 'input', 'change',
+  'focus', 'blur', 'focusin', 'focusout', 'cut', 'paste',
 ]);
 
 // Elements where the user is typing; page-wide key handlers ignore them.
@@ -40,12 +40,13 @@ function isTyping(event) {
 }
 
 /**
- * Brings the page up to date straight away after a one-off user action.
+ * Brings the page up to date straight away after a one-off action in a form
+ * field (input, text area, select), so nothing typed is lost.
  *
  * @param {Event} event
  */
 function renderAfter(event) {
-  if (DISCRETE.has(event.type)) flushRenders();
+  if (FIELD_EVENTS.has(event.type) && isTyping(event)) flushRenders();
 }
 
 /**
@@ -166,15 +167,6 @@ export function setEvents(el, on = {}) {
   } else {
     handlers.delete(el);
   }
-}
-
-/**
- * Removes every handler from an element.
- *
- * @param {HTMLElement} el - The element to clear.
- */
-export function removeEvents(el) {
-  setEvents(el, {});
 }
 
 /**

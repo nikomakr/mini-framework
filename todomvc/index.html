@@ -7,6 +7,24 @@
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/index.css">
+  <!-- Fetch every module at once instead of discovering them one import at a time. -->
+  <link rel="modulepreload" href="app.js">
+  <link rel="modulepreload" href="store.js">
+  <link rel="modulepreload" href="components/Header.js">
+  <link rel="modulepreload" href="components/TodoList.js">
+  <link rel="modulepreload" href="components/TodoItem.js">
+  <link rel="modulepreload" href="components/Footer.js">
+  <link rel="modulepreload" href="components/Info.js">
+  <link rel="modulepreload" href="../framework/index.js">
+  <link rel="modulepreload" href="../framework/vnode.js">
+  <link rel="modulepreload" href="../framework/render.js">
+  <link rel="modulepreload" href="../framework/diff.js">
+  <link rel="modulepreload" href="../framework/events.js">
+  <link rel="modulepreload" href="../framework/state.js">
+  <link rel="modulepreload" href="../framework/router.js">
+  <link rel="modulepreload" href="../framework/scheduler.js">
+  <link rel="modulepreload" href="../framework/lifecycle.js">
+  <link rel="modulepreload" href="../framework/app.js">
 </head>
 <body>
   <!-- The app renders section.todoapp and footer.info here. -->

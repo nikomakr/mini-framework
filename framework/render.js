@@ -1,5 +1,6 @@
 import { setEvents } from './events.js';
 import { registerHooks, flushMounts, unmount } from './lifecycle.js';
+import { isMemo, resolveMemo } from './vnode.js';
 
 // Names handled by later features (keys, refs) are not DOM attributes.
 const RESERVED = new Set(['key', 'ref', 'onMount', 'onUnmount']);
@@ -64,10 +65,12 @@ export function setAttribute(el, name, value) {
 /**
  * Builds a real DOM node from a virtual node, including all its children.
  *
- * @param {Object|string|number} vnode - A virtual node from h(), or text.
+ * @param {Object|string|number} vnode - A virtual node from h() or memo(), or text.
  * @returns {Node} The real DOM node.
  */
 export function createElement(vnode) {
+  if (isMemo(vnode)) return createElement(resolveMemo(vnode));
+
   if (typeof vnode === 'string' || typeof vnode === 'number') {
     return document.createTextNode(String(vnode));
   }

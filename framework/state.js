@@ -1,4 +1,23 @@
 /**
+ * Whether two values are the same, looking one level inside objects and
+ * arrays: `{ a: 1 }` and `{ a: 1 }` are equal, as are `[x, y]` and `[x, y]`.
+ *
+ * @param {*} a
+ * @param {*} b
+ * @returns {boolean}
+ */
+function shallowEqual(a, b) {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  return keysA.length === keysB.length
+    && keysA.every((key) => Object.prototype.hasOwnProperty.call(b, key) && Object.is(a[key], b[key]));
+}
+
+/**
  * Creates a store: one place that holds the app's state, reachable from
  * every page. Several stores can exist at the same time, each independent.
  *
@@ -40,18 +59,25 @@ export function createStore(initialState = {}) {
     state = { ...prevState, ...partial };
 
     // A copy, so a listener that unsubscribes does not break the loop.
-    Array.from(listeners).forEach(({ selector, listener }) => {
-      if (selector && Object.is(selector(prevState), selector(state))) return;
-      listener(state, prevState);
+    Array.from(listeners).forEach((entry) => {
+      if (entry.selector) {
+        const selected = entry.selector(state);
+        if (shallowEqual(entry.selected, selected)) return;
+        entry.selected = selected;
+      }
+      entry.listener(state, prevState);
     });
   }
 
   /**
    * Listens for changes. With a selector, the listener only runs when the
-   * selected part of the state changes (compared with Object.is).
+   * selected part of the state changes. The comparison is shallow, so a
+   * selector may return a new object or array each time: it only counts as a
+   * change when one of its values is different.
    *
    * @example
    * const stop = store.subscribe((state) => state.todos, saveTodos);
+   * store.subscribe((state) => ({ lives: state.lives, score: state.score }), updateScoreboard);
    * stop(); // no longer listening
    *
    * @param {Function} selectorOrListener - `listener(state, prevState)`, or a
@@ -68,7 +94,7 @@ export function createStore(initialState = {}) {
       throw new TypeError('subscribe(listener) or subscribe(selector, listener) requires a function.');
     }
 
-    const entry = { selector, listener };
+    const entry = { selector, listener, selected: selector ? selector(state) : undefined };
     listeners.add(entry);
 
     return () => {
