@@ -148,6 +148,8 @@ const paragraph = h('p', 'This paragraph has no attributes.');
 render(paragraph, document.getElementById('app'));
 ```
 
+You should inspect the page, hoover over the 'This paragraph has no attributes.', go to Console in DevTools, type `$0.attributes.length` and it will give you 0.
+
 ## Add attributes
 
 The second argument of `h` is an object. Each key is the name of an attribute and each value is what to set it to.
@@ -300,21 +302,29 @@ render(input, document.getElementById('app'));
 Some events belong to the page rather than to one element, such as game controls or resizing the window. `onGlobal(type, handler)` listens to them and returns a function that stops listening.
 
 ```js
-import { onGlobal } from '/framework/index.js';
+import { h, render, onGlobal } from '/framework/index.js';
+
+render(h('input', { placeholder: 'Type here' }), document.getElementById('app'));
 
 const stopListening = onGlobal('keydown', (event) => {
   console.log('Key pressed:', event.key);
+  if (event.key === 'Escape') stopListening();
 });
-
-// Later, when it is no longer needed:
-stopListening();
 ```
+
+Open the Console, click an empty part of the page and press some keys: each one is logged. Typing in the input logs nothing. Press `Escape` (outside the input) to stop listening; after that, no keys are logged.
 
 Key events typed inside an input, text area, select or editable element are ignored by default, so typing in a form does not trigger game controls. Pass `{ allowInInputs: true }` to receive them as well:
 
 ```js
+import { h, render, onGlobal } from '/framework/index.js';
+
+render(h('input', { placeholder: 'Type here' }), document.getElementById('app'));
+
 onGlobal('keydown', (event) => console.log('Key pressed:', event.key), { allowInInputs: true });
 ```
+
+Now typing in the input is logged too.
 
 `blur`, `focus` and `resize` are listened to on the window. Every other type is listened to on the document.
 
