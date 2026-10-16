@@ -333,19 +333,42 @@ Now typing in the input is logged too.
 For smooth movement, a game loop needs to know which keys are held down at each frame, rather than waiting for the keyboard to repeat. `createKeyState()` keeps track of them:
 
 ```js
-import { createKeyState } from '/framework/index.js';
+import { h, render, createKeyState } from '/framework/index.js';
 
 const keys = createKeyState();
+let y = 100;
+let running = true;
 
-// Inside a game loop, once per frame:
-if (keys.isDown('ArrowUp')) moveUp();
-console.log(keys.pressed()); // e.g. ['ArrowUp', ' ']
+render(
+  h('div', {}, [
+    h('p', { id: 'held' }, ['Held keys: none']),
+    h('button', { on: { click: () => { keys.destroy(); running = false; } } }, ['End game']),
+    h('div', { id: 'box', style: 'position:absolute; left:100px; top:100px; width:40px; height:40px; background:teal' }),
+  ]),
+  document.getElementById('app')
+);
 
-// When the game ends:
-keys.destroy();
+const held = document.getElementById('held');
+const box = document.getElementById('box');
+
+// The game loop: runs once per frame
+function frame() {
+  if (keys.isDown('ArrowUp')) y -= 3;
+  if (keys.isDown('ArrowDown')) y += 3;
+  box.style.top = y + 'px';
+  held.textContent = 'Held keys: ' + (keys.pressed().join(', ') || 'none');
+  if (running) requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
 ```
 
-Every key is released when the window loses focus or the tab is hidden, so none stay stuck.
+- `keys.isDown(key)` returns `true` while that key is held.
+- `keys.pressed()` returns every key held right now, such as `['ArrowUp', ' ']`.
+- `keys.destroy()` stops tracking keys. Call it when the game ends.
+
+Click the page, then hold `ArrowDown`: the square slides down and the text shows `Held keys: ArrowDown`. Let go and it stops. Hold two keys together and both are listed. Click **End game** and holding keys no longer does anything.
+
+Every key is released when the window loses focus or the tab is hidden, so none stay stuck. To see it, hold `ArrowDown`, switch to another app, let go, then come back: the square is not moving. This also happens while DevTools has focus, so click the page before testing.
 
 ### Events that do not bubble
 
